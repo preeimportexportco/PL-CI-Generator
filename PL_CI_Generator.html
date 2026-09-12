@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Packing List &amp; Commercial Invoice Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#0F2540;
+    --navy-2:#173257;
+    --slate:#4A5C72;
+    --slate-light:#8A97A8;
+    --paper:#F7F6F2;
+    --line:#D9DDE3;
+    --amber:#C97A2B;
+    --amber-dark:#A5601C;
+    --green:#3A7D5C;
+    --red:#B23A3A;
+    --white:#FFFFFF;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --sans: 'IBM Plex Sans', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background:var(--paper); font-family: var(--sans), Arial, sans-serif; color:var(--navy); }
+  .wrap{ max-width:1180px; margin:0 auto; padding:20px 20px 80px; }
+
+  header.top{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  header.top .title{ display:flex; flex-direction:column; gap:2px; }
+  header.top h1{ font-size:20px; margin:0; letter-spacing:.2px; color:var(--navy); }
+  header.top .sub{ font-size:12.5px; color:var(--slate); }
+  .btn{ appearance:none; border:1px solid var(--navy); background:var(--white); color:var(--navy); padding:8px 14px; font-size:13px; border-radius:3px; cursor:pointer; font-family:inherit; font-weight:600; transition:transform .08s ease; }
+  .btn:hover{ background:var(--navy); color:var(--white); }
+  .btn:active{ transform:scale(.97); }
+  .btn.primary{ background:var(--amber); border-color:var(--amber-dark); color:var(--white); }
+  .btn.primary:hover{ background:var(--amber-dark); }
+  .btn.ghost{ border-color:var(--line); color:var(--slate); }
+  .btn.ghost:hover{ background:var(--slate); color:var(--white); border-color:var(--slate); }
+  .btn.small{ padding:4px 9px; font-size:11.5px; border-radius:3px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  section.card{ background:var(--white); border:1px solid var(--line); border-radius:4px; margin-bottom:16px; overflow:hidden; }
+  section.card > .card-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,#FBFAF8,#F3F1EC); cursor:pointer; user-select:none; }
+  section.card > .card-head h2{ font-size:13.5px; margin:0; text-transform:uppercase; letter-spacing:.6px; color:var(--navy-2); }
+  section.card > .card-head .hint{ font-size:11.5px; color:var(--slate-light); font-weight:500; }
+  section.card > .card-body{ padding:16px; }
+  section.card.collapsed > .card-body{ display:none; }
+  .chev{ font-size:12px; color:var(--slate); transition:transform .15s ease; }
+  section.card.collapsed .chev{ transform:rotate(-90deg); }
+
+  .grid{ display:grid; gap:12px; }
+  .grid.cols-2{ grid-template-columns:1fr 1fr; }
+  .grid.cols-3{ grid-template-columns:1fr 1fr 1fr; }
+  .grid.cols-4{ grid-template-columns:repeat(4,1fr); }
+  @media (max-width:760px){ .grid.cols-2,.grid.cols-3,.grid.cols-4{ grid-template-columns:1fr; } }
+
+  label.field{ display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--slate); font-weight:600; }
+  label.field span.lbl{ display:flex; align-items:center; gap:5px; }
+  label.field input[type=text], label.field input[type=number], label.field textarea{
+    font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid var(--line); border-radius:3px; color:var(--navy); background:var(--white);
+  }
+  label.field input:focus, label.field textarea:focus, label.field select:focus{ outline:2px solid var(--amber); outline-offset:0; border-color:var(--amber); }
+  label.field textarea{ resize:vertical; font-family:inherit; }
+  label.field select{ font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid var(--line); border-radius:3px; background:var(--white); color:var(--navy); }
+  .formula-box{ background:#FBF6EE; border:1px dashed var(--amber-dark); border-radius:4px; padding:10px 12px; font-size:12px; color:var(--navy-2); margin-bottom:12px; line-height:1.55; }
+  .formula-box code{ background:var(--white); padding:1px 5px; border-radius:2px; border:1px solid var(--line); font-family:var(--mono); }
+
+  .file-row{ display:flex; align-items:center; gap:10px; }
+  .file-row img{ height:34px; border:1px solid var(--line); border-radius:3px; background:#fff; padding:2px; }
+  .file-row .noimg{ font-size:11px; color:var(--slate-light); font-style:italic; }
+
+  textarea#pasteArea{ width:100%; min-height:150px; font-family:var(--mono); font-size:12.5px; padding:10px; border:1px solid var(--line); border-radius:4px; }
+  .paste-actions{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px; }
+  .paste-actions .left{ display:flex; gap:8px; flex-wrap:wrap; }
+  .col-map{ font-size:11.5px; color:var(--slate); margin-top:8px; }
+
+  table.datatable{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.datatable th{ background:var(--navy); color:var(--white); font-weight:600; text-align:left; padding:7px 8px; font-size:11px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
+  table.datatable td{ border-bottom:1px solid var(--line); padding:4px 6px; vertical-align:middle; }
+  table.datatable tbody tr:hover{ background:#FAFAF8; }
+  table.datatable input{ width:100%; border:1px solid transparent; background:transparent; font-family:inherit; font-size:12.5px; padding:4px 5px; border-radius:2px; color:var(--navy); }
+  table.datatable input:hover{ border-color:var(--line); }
+  table.datatable input:focus{ border-color:var(--amber); outline:none; background:#fff; }
+  table.datatable td.num input{ text-align:right; font-family:var(--mono); }
+  table.datatable td.auto input{ color:var(--green); }
+  table.datatable td.manual input{ color:var(--red); font-weight:600; }
+  table.datatable td.flagcell{ text-align:center; width:26px; }
+  table.datatable .autobtn{ border:none; background:none; cursor:pointer; font-size:13px; padding:2px; line-height:1; }
+  table.datatable .rmbtn{ border:none; background:none; cursor:pointer; color:var(--slate-light); font-size:14px; }
+  table.datatable .rmbtn:hover{ color:var(--red); }
+  table.datatable tfoot td{ font-weight:700; background:#F3F1EC; border-top:2px solid var(--navy); font-family:var(--mono); }
+  .table-scroll{ overflow-x:auto; }
+  .legend{ display:flex; gap:16px; font-size:11px; color:var(--slate); margin-top:8px; flex-wrap:wrap; }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot.g{ background:var(--green); } .dot.r{ background:var(--red); }
+
+  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:14px; }
+  .tabbtn{ padding:9px 16px; font-size:12.5px; font-weight:600; color:var(--slate); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:inherit; }
+  .tabbtn.active{ color:var(--navy); border-bottom-color:var(--amber); }
+  .preview-outer{ background:#EDEBE4; padding:22px; border-radius:4px; overflow-x:auto; }
+  .page{ background:#fff; width:760px; margin:0 auto 24px; padding:calc(36px * var(--scale,1)) calc(42px * var(--scale,1)); box-shadow:0 1px 4px rgba(0,0,0,.15); font-family:Arial, sans-serif; color:#111; font-size:calc(12.5px * var(--scale,1)); }
+  .page h1.doctitle{ text-align:center; font-size:calc(17px * var(--scale,1)); margin:calc(18px * var(--scale,1)) 0 calc(14px * var(--scale,1)); }
+  .page .letterhead{ text-align:center; border-bottom:calc(2px * var(--scale,1)) solid #B4242A; padding-bottom:calc(9px * var(--scale,1)); margin-bottom:calc(10px * var(--scale,1)); }
+  .page .companyname{ text-align:center; color:#B4242A; font-weight:bold; font-size:calc(23px * var(--scale,1)); letter-spacing:calc(0.4px * var(--scale,1)); font-style:normal; margin:0; line-height:1.2; }
+  .page .companyaddr{ text-align:center; color:#5B5B5B; font-size:calc(9px * var(--scale,1)); font-weight:normal; margin:calc(4px * var(--scale,1)) 0 0; letter-spacing:.2px; }
+  .page .kvline{ margin:calc(3px * var(--scale,1)) 0; }
+  .page .metaright{ text-align:right; font-style:italic; margin:calc(10px * var(--scale,1)) 0; }
+  .page table.doc{ width:100%; border-collapse:collapse; margin:calc(14px * var(--scale,1)) 0; font-size:calc(11.5px * var(--scale,1)); }
+  .page table.doc th, .page table.doc td{ border:1px solid #111; padding:calc(5px * var(--scale,1)) calc(6px * var(--scale,1)); text-align:center; }
+  .page table.doc th{ font-weight:bold; }
+  .page table.doc td.left{ text-align:left; }
+  .page table.doc tfoot td{ font-weight:bold; }
+  .page .terms{ font-weight:bold; font-style:italic; margin-top:calc(16px * var(--scale,1)); font-size:calc(11.5px * var(--scale,1)); }
+  .page .bank{ font-weight:bold; font-style:italic; font-size:calc(11px * var(--scale,1)); line-height:1.45; margin-top:calc(4px * var(--scale,1)); }
+  .page .stampwrap{ text-align:right; margin-top:calc(6px * var(--scale,1)); }
+  .page .stampwrap img{ height:calc(70px * var(--scale,1)); }
+
+  footer.actions{ position:sticky; bottom:0; background:linear-gradient(180deg, rgba(247,246,242,0), var(--paper) 30%); padding:14px 0 0; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+  .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff; padding:9px 18px; border-radius:20px; font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:99; }
+  .toast.show{ opacity:1; }
+  .empty-hint{ text-align:center; color:var(--slate-light); padding:30px 10px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title">
+      <h1>Packing List &amp; Commercial Invoice Generator</h1>
+      <span class="sub">Paste your rate sheet → auto-calculate net weight &amp; invoice value → export Excel / Word / PDF</span>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn ghost small" id="loadSampleBtn">Load sample data</button>
+      <button class="btn ghost small" id="clearAllBtn">Clear all</button>
+    </div>
+  </header>
+
+  <!-- SETTINGS -->
+  <section class="card" id="settingsCard">
+    <div class="card-head" data-toggle="settingsCard">
+      <h2>Settings — company, consignee &amp; formula</h2>
+      <span class="hint">Click to expand/collapse · saved automatically</span>
+    </div>
+    <div class="card-body">
+
+      <div class="formula-box">
+        <strong>Default formulas (each row can still be overridden manually):</strong><br>
+        Net Weight = Gross Weight × <code>Net Weight %</code> (default 90%, i.e. 10% loss — change per shipment)<br>
+        Invoice Total (item) = ( Gross Weight × <code>₹ per kg</code> ) ÷ <code>USD/INR rate</code> &nbsp;→&nbsp; Unit Price = Invoice Total ÷ Quantity
+      </div>
+
+      <div class="grid cols-4" style="margin-bottom:18px;">
+        <label class="field">
+          <span class="lbl">Net weight %</span>
+          <input type="number" id="setNetPct" value="90" step="0.1">
+        </label>
+        <label class="field">
+          <span class="lbl">₹ per kg</span>
+          <input type="number" id="setRupeeRate" value="60" step="0.1">
+        </label>
+        <label class="field">
+          <span class="lbl">USD / INR rate</span>
+          <input type="number" id="setUsdRate" value="88" step="0.01">
+        </label>
+        <label class="field">
+          <span class="lbl">Terms (e.g. CNF / FOB)</span>
+          <input type="text" id="setIncoterm" value="CNF">
+        </label>
+      </div>
+
+      <div class="grid cols-2">
+        <div>
+          <div class="grid cols-2">
+            <label class="field"><span class="lbl">Exporter / company name</span>
+              <input type="text" id="setCompanyName" value="YIWU ZHUANMEI IMPORT AND EXPORT CO.,LTD"></label>
+            <label class="field"><span class="lbl">Invoice No.</span>
+              <input type="text" id="setInvoiceNo" placeholder="e.g. YZIETO190826"></label>
+          </div>
+          <label class="field" style="margin-top:12px;"><span class="lbl">Company address</span>
+            <textarea id="setCompanyAddr" rows="2">1008, BLOCK A, YIWU PORT OFFICE BUILDING, NO 266, CHENGXIN AVENUE, FUTIAN STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE, CHINA</textarea></label>
+          <div class="grid cols-2" style="margin-top:12px;">
+            <label class="field"><span class="lbl">Invoice date</span>
+              <input type="text" id="setInvoiceDate" placeholder="DD-MM-YYYY"></label>
+            <label class="field"><span class="lbl">Company logo (header)</span>
+              <input type="file" id="setLogoFile" accept="image/*"></label>
+          </div>
+          <div class="file-row" style="margin-top:6px;"><span id="logoPreviewWrap" class="noimg">No logo uploaded — header will show company name as text only.</span></div>
+        </div>
+        <div>
+          <div class="grid cols-2">
+            <label class="field"><span class="lbl">Consignee name</span>
+              <input type="text" id="setConsigneeName" value="TANISHKA OVERSEAS"></label>
+            <label class="field"><span class="lbl">PAN / IEC No.</span>
+              <input type="text" id="setPanIec" value="COTPC4975H"></label>
+          </div>
+          <label class="field" style="margin-top:12px;"><span class="lbl">Consignee address</span>
+            <textarea id="setConsigneeAddr" rows="2">2ND FLOOR, KH NO 17/2, STREET 8, JHARODA MAJRA, NEW DELHI 110084</textarea></label>
+          <div class="grid cols-2" style="margin-top:12px;">
+            <label class="field"><span class="lbl">GST No.</span>
+              <input type="text" id="setGst" value="07COTPC4975H1ZF"></label>
+            <label class="field"><span class="lbl">Company stamp / signature image</span>
+              <input type="file" id="setStampFile" accept="image/*"></label>
+          </div>
+          <div class="file-row" style="margin-top:6px;"><span id="stampPreviewWrap" class="noimg">No stamp uploaded yet — once you upload one it appears automatically on both the Packing List and the Commercial Invoice, in the preview, Word and PDF exports.</span></div>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px;">
+        <label class="field"><span class="lbl">Payment terms — Packing List</span>
+          <input type="text" id="setTermsPacking" value="Payment Terms :- Within 30 days from the date of receiving of the good"></label>
+        <label class="field"><span class="lbl">Payment terms — Commercial Invoice</span>
+          <input type="text" id="setTermsInvoice" value="Payment Terms :- Within 60 days from the date of receiving of the goods"></label>
+      </div>
+
+      <label class="field" style="margin-top:14px;"><span class="lbl">Bank details block (shown under the Commercial Invoice)</span>
+        <textarea id="setBankDetails" rows="6">ALL THE PAYMENT IS IN USD
+
+Beneficiary Bank: Bank Of Taizhou Co.,Ltd.
+Bank Address: No. 699, Shifu Dadao, Taizhou, Zhejiang, 318000, China
+SWIFT BIC: TZBKCNBTXXX
+Account No.: 551114889000020
+Name: YIWU ZHUANMEI IMPORT AND EXPORT CO.,LTD
+Address & Telephone No.: 1008, Block A, Yiwu Port, No 266, Chengxin Avenue, Futian St, Yiwu, Zhejiang
+
+Intermediary bank: The Bank of New York Mellon, New York, USA
+SWIFT BIC: IRVTUS3NXXX</textarea></label>
+
+      <div style="margin-top:14px; text-align:right;">
+        <button class="btn primary small" id="saveSettingsBtn">Save settings</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PASTE DATA -->
+  <section class="card" id="pasteCard">
+    <div class="card-head" data-toggle="pasteCard">
+      <h2>Step 1 — Paste your data</h2>
+      <span class="hint">Copy rows from Excel (including blank cells) and paste below</span>
+    </div>
+    <div class="card-body">
+      <div class="col-map">Expected columns, tab-separated, in this order: <code>Shipping Mark&nbsp;&nbsp;Item Name&nbsp;&nbsp;Total CTN&nbsp;&nbsp;Unit&nbsp;&nbsp;Quantity&nbsp;&nbsp;Gross Weight</code>. A header row is detected automatically and skipped.</div>
+      <textarea id="pasteArea" placeholder="Paste tab-separated rows here, e.g.
+WHALES	TAP EXTENSION SANITARY	304	GROSS	211	6232
+AUWP	ASSORTED BABY GARMENTS	40	PCS	5493	1922"></textarea>
+      <div class="paste-actions">
+        <div class="left">
+          <button class="btn primary" id="parseBtn">Parse &amp; load table</button>
+          <button class="btn ghost" id="recalcAllBtn">Recalculate all (keep manual edits)</button>
+          <button class="btn ghost" id="resetAllBtn">Reset every row to auto</button>
+        </div>
+        <span class="hint" id="rowCountHint" style="color:var(--slate-light); font-size:12px;"></span>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12px; color:var(--slate); font-weight:600;">
+        <input type="checkbox" id="appendModeCheckbox"> Add these rows to the existing table instead of replacing it
+      </label>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <section class="card" id="tableCard">
+    <div class="card-head" data-toggle="tableCard">
+      <h2>Step 2 — Review &amp; edit</h2>
+      <span class="hint">Every cell is editable · computed cells auto-flag when you override them</span>
+    </div>
+    <div class="card-body">
+      <div id="tableWrap">
+        <div class="empty-hint">No rows yet — paste data above, or click "Load sample data".</div>
+      </div>
+      <div class="legend">
+        <span><span class="dot g"></span> auto-calculated</span>
+        <span><span class="dot r"></span> manually overridden (click ↺ to restore auto)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREVIEW -->
+  <section class="card" id="previewCard">
+    <div class="card-head" data-toggle="previewCard">
+      <h2>Step 3 — Preview documents</h2>
+      <span class="hint">This is exactly what exports to Word / PDF</span>
+    </div>
+    <div class="card-body">
+      <div class="tabs">
+        <button class="tabbtn active" data-tab="packing">Packing List</button>
+        <button class="tabbtn" data-tab="invoice">Commercial Invoice</button>
+      </div>
+      <div class="hint" id="fitHint" style="margin-bottom:10px;"></div>
+      <div class="preview-outer">
+        <div id="previewHost"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="actions">
+    <button class="btn ghost" id="exportExcelBtn">Download Excel (.xlsx)</button>
+    <button class="btn ghost" id="exportWordBtn">Download Word (.doc)</button>
+    <button class="btn primary" id="exportPdfBtn">Download PDF</button>
+  </footer>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  var rows = [];      // {id, shippingMark, itemName, totalCtn, unit, quantity, grossWeight, netWeight, netAuto, unitPrice, priceAuto, total, totalAuto}
+  var settings = {};
+  var idSeq = 1;
+  var activeTab = 'packing';
+  var STORE_KEY = 'plci_state_v1';
+
+  var SAMPLE_ROWS = [
+    ["WHALES","TAP EXTENSION SANITARY","304","GROSS","211","6232"],
+    ["AUWP","ASSORTED BABY GARMENTS","40","PCS","5493","1922"],
+    ["MAYANK INDIA","MAGNET","186","GROSS","361","3218"],
+    ["NITIN GARG","METAL ACCESSERIES FOR FURNITURE","13","KG","273","303"],
+    ["SKY","ASSORTED MACHINE PARTS","60","GROSS","186","917"],
+    ["D-JTC","TAPE","125","GROSS","1736","1438"],
+    ["","PLASTIC STRIP","25","GROSS","347","378"],
+    ["RITZY","DOOR HANDLE","89","PCS","3560","2386"],
+    ["PR-SAHIL","COLOUR SET","80","SET","800","1104"],
+    ["BCG33","SWEING MACHINE","96","PCS","1920","1882"],
+    ["PR-17kg/ SF400A-black","WEIGHING SCALE","7","PCS","280","120"]
+  ];
+
+  function toast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  }
+
+  function num(v){ var n = parseFloat(String(v==null?'':v).replace(/,/g,'').trim()); return isNaN(n) ? 0 : n; }
+  function round2(v){ return Math.round((v + Number.EPSILON) * 100) / 100; }
+  function fmt(v, dp){ dp = (dp==null?2:dp); var n = num(v); var r = Math.round((n+Number.EPSILON)*Math.pow(10,dp))/Math.pow(10,dp); return r.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:dp}); }
+
+  // ---------- settings ----------
+  function defaultSettings(){
+    return {
+      netPct: 90, rupeeRate: 60, usdRate: 88, incoterm: 'CNF',
+      companyName: 'YIWU ZHUANMEI IMPORT AND EXPORT CO.,LTD',
+      companyAddr: '1008, BLOCK A, YIWU PORT OFFICE BUILDING, NO 266, CHENGXIN AVENUE, FUTIAN STREET, YIWU CITY, JINHUA CITY, ZHEJIANG PROVINCE, CHINA',
+      invoiceNo: '', invoiceDate: '', logo: '', stamp: '',
+      consigneeName: 'TANISHKA OVERSEAS',
+      consigneeAddr: '2ND FLOOR, KH NO 17/2, STREET 8, JHARODA MAJRA, NEW DELHI 110084',
+      panIec: 'COTPC4975H', gst: '07COTPC4975H1ZF',
+      termsPacking: 'Payment Terms :- Within 30 days from the date of receiving of the good',
+      termsInvoice: 'Payment Terms :- Within 60 days from the date of receiving of the goods',
+      bankDetails: 'ALL THE PAYMENT IS IN USD\n\nBeneficiary Bank: Bank Of Taizhou Co.,Ltd.\nBank Address: No. 699, Shifu Dadao, Taizhou, Zhejiang, 318000, China\nSWIFT BIC: TZBKCNBTXXX\nAccount No.: 551114889000020\nName: YIWU ZHUANMEI IMPORT AND EXPORT CO.,LTD\nAddress & Telephone No.: 1008, Block A, Yiwu Port, No 266, Chengxin Avenue, Futian St, Yiwu, Zhejiang\n\nIntermediary bank: The Bank of New York Mellon, New York, USA\nSWIFT BIC: IRVTUS3NXXX'
+    };
+  }
+
+  function readSettingsFromForm(){
+    settings.netPct = num(document.getElementById('setNetPct').value);
+    settings.rupeeRate = num(document.getElementById('setRupeeRate').value);
+    settings.usdRate = num(document.getElementById('setUsdRate').value) || 1;
+    settings.incoterm = document.getElementById('setIncoterm').value.trim();
+    settings.companyName = document.getElementById('setCompanyName').value;
+    settings.companyAddr = document.getElementById('setCompanyAddr').value;
+    settings.invoiceNo = document.getElementById('setInvoiceNo').value;
+    settings.invoiceDate = document.getElementById('setInvoiceDate').value;
+    settings.consigneeName = document.getElementById('setConsigneeName').value;
+    settings.consigneeAddr = document.getElementById('setConsigneeAddr').value;
+    settings.panIec = document.getElementById('setPanIec').value;
+    settings.gst = document.getElementById('setGst').value;
+    settings.termsPacking = document.getElementById('setTermsPacking').value;
+    settings.termsInvoice = document.getElementById('setTermsInvoice').value;
+    settings.bankDetails = document.getElementById('setBankDetails').value;
+  }
+
+  function writeSettingsToForm(){
+    document.getElementById('setNetPct').value = settings.netPct;
+    document.getElementById('setRupeeRate').value = settings.rupeeRate;
+    document.getElementById('setUsdRate').value = settings.usdRate;
+    document.getElementById('setIncoterm').value = settings.incoterm;
+    document.getElementById('setCompanyName').value = settings.companyName;
+    document.getElementById('setCompanyAddr').value = settings.companyAddr;
+    document.getElementById('setInvoiceNo').value = settings.invoiceNo;
+    document.getElementById('setInvoiceDate').value = settings.invoiceDate;
+    document.getElementById('setConsigneeName').value = settings.consigneeName;
+    document.getElementById('setConsigneeAddr').value = settings.consigneeAddr;
+    document.getElementById('setPanIec').value = settings.panIec;
+    document.getElementById('setGst').value = settings.gst;
+    document.getElementById('setTermsPacking').value = settings.termsPacking;
+    document.getElementById('setTermsInvoice').value = settings.termsInvoice;
+    document.getElementById('setBankDetails').value = settings.bankDetails;
+    renderImagePreview('logo');
+    renderImagePreview('stamp');
+  }
+
+  function renderImagePreview(kind){
+    var wrap = document.getElementById(kind === 'logo' ? 'logoPreviewWrap' : 'stampPreviewWrap');
+    var val = settings[kind];
+    if (val) {
+      wrap.innerHTML = '<img src="'+val+'" alt="'+kind+'"> <button class="btn ghost small" type="button" data-clearimg="'+kind+'">Remove</button>';
+    } else {
+      wrap.innerHTML = '<span class="noimg">No '+(kind==='logo'?'logo':'stamp')+' uploaded'+(kind==='logo' ? ' — header will show company name as text only.' : ' — invoices export without one.')+'</span>';
+    }
+  }
+
+  async function saveState(){
+    try{
+      if (!window.storage) return;
+      var payload = { settings: settings, rows: rows, idSeq: idSeq };
+      await window.storage.set(STORE_KEY, JSON.stringify(payload), false);
+    }catch(e){ /* best effort */ }
+  }
+
+  async function loadState(){
+    settings = defaultSettings();
+    try{
+      if (window.storage){
+        var res = await window.storage.get(STORE_KEY, false);
+        if (res && res.value){
+          var payload = JSON.parse(res.value);
+          if (payload.settings) settings = Object.assign(defaultSettings(), payload.settings);
+          if (Array.isArray(payload.rows)) rows = payload.rows;
+          if (payload.idSeq) idSeq = payload.idSeq;
+        }
+      }
+    }catch(e){ /* first run or no storage */ }
+    writeSettingsToForm();
+    renderTable();
+    renderPreview();
+  }
+
+  // ---------- row math ----------
+  function computeRow(r){
+    if (r.netAuto) r.netWeight = Math.round(r.grossWeight * (settings.netPct/100));
+    if (r.priceAuto){
+      var invoiceTotal = (r.grossWeight * settings.rupeeRate) / (settings.usdRate || 1);
+      r.unitPrice = r.quantity ? round2(invoiceTotal / r.quantity) : 0;
+    }
+    if (r.totalAuto){
+      r.total = round2(r.unitPrice * r.quantity);
+    }
+  }
+
+  function computeAll(){
+    rows.forEach(computeRow);
+    renderTable();
+    renderPreview();
+    saveState();
+  }
+
+  function addRow(shippingMark, itemName, totalCtn, unit, quantity, grossWeight){
+    var r = {
+      id: idSeq++,
+      shippingMark: shippingMark || '',
+      itemName: itemName || '',
+      totalCtn: num(totalCtn),
+      unit: unit || '',
+      quantity: num(quantity),
+      grossWeight: num(grossWeight),
+      netWeight: 0, netAuto: true,
+      unitPrice: 0, priceAuto: true,
+      total: 0, totalAuto: true
+    };
+    computeRow(r);
+    rows.push(r);
+  }
+
+  // ---------- parsing pasted data ----------
+  function looksLikeHeader(cells){
+    var joined = cells.join(' ').toUpperCase();
+    return joined.indexOf('ITEM NAME') !== -1 || joined.indexOf('GROSS WEIGHT') !== -1 || joined.indexOf('SHIPPING MARK') !== -1;
+  }
+
+  function parsePaste(){
+    var raw = document.getElementById('pasteArea').value;
+    if (!raw.trim()){ toast('Paste some rows first'); return; }
+    var lines = raw.split(/\r?\n/).filter(function(l){ return l.trim().length; });
+    var parsed = [];
+    lines.forEach(function(line){
+      var cells = line.split('\t');
+      if (cells.length < 3) cells = line.split(/ {2,}/); // fallback for space-aligned paste
+      if (looksLikeHeader(cells)) return;
+      // Expect: ShippingMark, ItemName, TotalCtn, Unit, Quantity, GrossWeight  (6 cols)
+      // Fallback to 5 cols without Unit.
+      if (cells.length >= 6){
+        parsed.push({shippingMark:cells[0], itemName:cells[1], totalCtn:cells[2], unit:cells[3], quantity:cells[4], grossWeight:cells[5]});
+      } else if (cells.length === 5){
+        parsed.push({shippingMark:cells[0], itemName:cells[1], totalCtn:cells[2], unit:'', quantity:cells[3], grossWeight:cells[4]});
+      }
+    });
+    if (!parsed.length){ toast('No valid rows recognised — check the column order'); return; }
+
+    // Many sheets end with their own subtotal line — either labelled "TOTAL", or just
+    // blank name columns with the summed CTN/weight already filled in. Drop it so it
+    // doesn't get treated as a real item and double-counted in our own totals row.
+    var droppedTotal = false;
+    if (parsed.length > 1){
+      var last = parsed[parsed.length - 1];
+      var mark = String(last.shippingMark).trim();
+      var name = String(last.itemName).trim();
+      var isTextTotal = /^total$/i.test(mark) || /^total$/i.test(name);
+      var isBlankRow = !mark && !name;
+      if (isTextTotal || isBlankRow){
+        var sumCtn = 0, sumGross = 0;
+        for (var i = 0; i < parsed.length - 1; i++){ sumCtn += num(parsed[i].totalCtn); sumGross += num(parsed[i].grossWeight); }
+        var lastCtn = num(last.totalCtn), lastGross = num(last.grossWeight);
+        var ctnMatches = lastCtn > 0 && Math.abs(lastCtn - sumCtn) < 0.5;
+        var grossMatches = lastGross > 0 && Math.abs(lastGross - sumGross) < 0.5;
+        if (isTextTotal || ctnMatches || grossMatches){
+          parsed.pop();
+          droppedTotal = true;
+        }
+      }
+    }
+
+    var appendMode = document.getElementById('appendModeCheckbox').checked;
+    if (!appendMode) rows = [];
+
+    parsed.forEach(function(p){ addRow(p.shippingMark, p.itemName, p.totalCtn, p.unit, p.quantity, p.grossWeight); });
+    document.getElementById('pasteArea').value = '';
+    toast(parsed.length + ' row(s) ' + (appendMode ? 'added' : 'loaded (previous table replaced)') + (droppedTotal ? ' — a trailing TOTAL row was detected and skipped' : ''));
+    computeAll();
+  }
+  // ---------- table render ----------
+  function renderTable(){
+    var wrap = document.getElementById('tableWrap');
+    document.getElementById('rowCountHint').textContent = rows.length ? (rows.length + ' row(s)') : '';
+    if (!rows.length){
+      wrap.innerHTML = '<div class="empty-hint">No rows yet — paste data above, or click "Load sample data".</div>';
+      return;
+    }
+    var html = '<div class="table-scroll"><table class="datatable"><thead><tr>' +
+      '<th>Shipping Mark</th><th>Item Name</th><th>Total CTN</th><th>Unit</th><th>Quantity</th><th>Gross Wt (kg)</th>' +
+      '<th>Net Wt (kg)</th><th></th><th>Unit Price ($)</th><th></th><th>Total ($)</th><th></th><th></th>' +
+      '</tr></thead><tbody>';
+
+    var totCtn=0, totGross=0, totNet=0, totValue=0;
+    rows.forEach(function(r){
+      totCtn += r.totalCtn; totGross += r.grossWeight; totNet += r.netWeight; totValue += r.total;
+      html += '<tr data-id="'+r.id+'">' +
+        td('shippingMark', r.shippingMark, 'text') +
+        td('itemName', r.itemName, 'text') +
+        td('totalCtn', r.totalCtn, 'num') +
+        td('unit', r.unit, 'text') +
+        td('quantity', r.quantity, 'num') +
+        td('grossWeight', r.grossWeight, 'num') +
+        td('netWeight', r.netWeight, 'num', r.netAuto) +
+        autoflag(r, 'netAuto') +
+        td('unitPrice', r.unitPrice, 'num', r.priceAuto) +
+        autoflag(r, 'priceAuto') +
+        td('total', r.total, 'num', r.totalAuto) +
+        autoflag(r, 'totalAuto') +
+        '<td class="flagcell"><button class="rmbtn" data-remove="'+r.id+'" title="Remove row">✕</button></td>' +
+      '</tr>';
+    });
+
+    html += '</tbody><tfoot><tr>' +
+      '<td colspan="2">TOTAL</td>' +
+      '<td class="num" data-tot="ctn">'+fmt(totCtn,0)+'</td><td></td><td></td>' +
+      '<td class="num" data-tot="gross">'+fmt(totGross,0)+'</td>' +
+      '<td class="num" data-tot="net">'+fmt(totNet,0)+'</td><td></td>' +
+      '<td></td><td></td>' +
+      '<td class="num" data-tot="value">'+fmt(totValue,2)+'</td><td></td><td></td>' +
+      '</tr></tfoot></table></div>';
+
+    wrap.innerHTML = html;
+
+    function td(field, value, type, isAuto){
+      var cls = type === 'num' ? 'num' : '';
+      if (isAuto === true) cls += ' auto';
+      if (isAuto === false) cls += ' manual';
+      var inputType = type === 'num' ? 'number' : 'text';
+      var step = (field === 'unitPrice' || field === 'total') ? '0.01' : '1';
+      return '<td class="'+cls+'"><input type="'+inputType+'" step="'+step+'" data-field="'+field+'" value="'+String(value).replace(/"/g,'&quot;')+'"></td>';
+    }
+    function autoflag(r, flagField){
+      var open = '<td class="flagcell" data-flagfor="'+flagField+'"'+(r.id!=null?' data-id="'+r.id+'"':'')+'>';
+      if (r[flagField]) return open+'</td>';
+      return open+'<button class="autobtn" data-reset="'+flagField+'" data-id="'+r.id+'" title="Reset to auto">↺</button></td>';
+    }
+  }
+
+  function findRow(id){ return rows.filter(function(r){ return r.id === id; })[0]; }
+
+  // Update just one row's computed cells in place (value + auto/manual class + reset
+  // button) without touching any other DOM node, so the input the person is actively
+  // typing in never gets recreated and never loses focus/cursor position.
+  function syncRowUI(r){
+    var tr = document.querySelector('#tableWrap tbody tr[data-id="'+r.id+'"]');
+    if (!tr) return;
+    var map = { netWeight:'netAuto', unitPrice:'priceAuto', total:'totalAuto' };
+    Object.keys(map).forEach(function(field){
+      var flagField = map[field];
+      var input = tr.querySelector('input[data-field="'+field+'"]');
+      if (input && document.activeElement !== input){
+        input.value = r[field];
+      }
+      if (input){
+        var cellTd = input.closest('td');
+        cellTd.classList.remove('auto','manual');
+        cellTd.classList.add(r[flagField] ? 'auto' : 'manual');
+      }
+      var flagTd = tr.querySelector('[data-flagfor="'+flagField+'"]');
+      if (flagTd){
+        flagTd.innerHTML = r[flagField] ? '' : '<button class="autobtn" data-reset="'+flagField+'" data-id="'+r.id+'" title="Reset to auto">↺</button>';
+      }
+    });
+  }
+
+  function updateFooterTotals(){
+    var totCtn=0, totGross=0, totNet=0, totValue=0;
+    rows.forEach(function(r){ totCtn+=r.totalCtn; totGross+=r.grossWeight; totNet+=r.netWeight; totValue+=r.total; });
+    var foot = document.querySelector('#tableWrap tfoot');
+    if (!foot) return;
+    var m = { ctn:[totCtn,0], gross:[totGross,0], net:[totNet,0], value:[totValue,2] };
+    Object.keys(m).forEach(function(key){
+      var cell = foot.querySelector('[data-tot="'+key+'"]');
+      if (cell) cell.textContent = fmt(m[key][0], m[key][1]);
+    });
+  }
+
+  var saveTimer = null;
+  function debouncedSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 500);
+  }
+
+  document.getElementById('tableWrap').addEventListener('input', function(e){
+    var input = e.target;
+    if (!input.dataset.field) return;
+    var tr = input.closest('tr');
+    var id = parseInt(tr.dataset.id, 10);
+    var r = findRow(id);
+    if (!r) return;
+    var field = input.dataset.field;
+    var isNumField = ['totalCtn','quantity','grossWeight','netWeight','unitPrice','total'].indexOf(field) !== -1;
+    var val = isNumField ? num(input.value) : input.value;
+    r[field] = val;
+    if (field === 'netWeight') r.netAuto = false;
+    if (field === 'unitPrice') r.priceAuto = false;
+    if (field === 'total') r.totalAuto = false;
+    // recompute any downstream field still on auto (e.g. editing unit price should
+    // still update Total if Total itself hasn't been separately overridden) —
+    // update the row and totals in place rather than rebuilding the whole table,
+    // so whichever input the person is typing in keeps focus and cursor position.
+    computeRow(r);
+    syncRowUI(r);
+    updateFooterTotals();
+    renderPreview();
+    debouncedSave();
+  });
+
+  document.getElementById('tableWrap').addEventListener('click', function(e){
+    var rm = e.target.closest('[data-remove]');
+    if (rm){
+      var id = parseInt(rm.dataset.remove, 10);
+      rows = rows.filter(function(r){ return r.id !== id; });
+      renderTable(); renderPreview(); saveState();
+      return;
+    }
+    var reset = e.target.closest('[data-reset]');
+    if (reset){
+      var rid = parseInt(reset.dataset.id, 10);
+      var r = findRow(rid);
+      if (r){
+        r[reset.dataset.reset] = true;
+        computeRow(r);
+        renderTable(); renderPreview(); saveState();
+      }
+    }
+  });
+
+  // ---------- preview / document build ----------
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  // Every size below is written as a plain inline style="..." attribute computed in
+  // JS, rather than a CSS class relying on calc()/var(--scale)/an external stylesheet.
+  // Word's own HTML renderer (and LibreOffice's .doc-as-HTML import) only reliably
+  // honours inline styles on elements — external <style> rules using calc() or CSS
+  // custom properties get silently dropped, which is why an exported Word/PDF file
+  // could show a normal-size company name even though the live preview (a real
+  // browser, full CSS3 support) showed the bigger letterhead correctly. Building the
+  // HTML this way makes the preview, the Word export and the PDF export all use the
+  // exact same numbers, resolved once here.
+  function px(n, scale){ return (Math.round(n * (scale||1) * 100) / 100) + 'px'; }
+
+  // Keep the Packing List and the Commercial Invoice each to a single A4 page:
+  // render both documents off-screen at full size, measure how tall they actually
+  // come out, and shrink font/padding by exactly the amount needed to fit the
+  // printable area — rather than guessing from row count alone (long item names
+  // that wrap to two lines take more room than the row count suggests).
+  var PRINT_WIDTH_PX = 673;   // ~A4 width minus 16mm margins each side, at 96dpi
+  var TARGET_HEIGHT_PX = 620; // Deliberately well under the theoretical ~950px A4 printable
+                               // height. Real Microsoft Word was confirmed (by opening an
+                               // actual exported file) to need meaningfully more room per
+                               // row than this off-screen browser measurement predicts, so
+                               // this budget is calibrated from that real-world result
+                               // rather than from A4 geometry alone.
+  var MIN_SCALE = 0.55;       // Word/LibreOffice enforce a hard minimum row height that
+                               // does not shrink below roughly this point no matter how
+                               // small the font is set — shrinking further only helps in
+                               // the browser/PDF path, so don't chase a false sense of fit
+
+  function computeFitScale(){
+    if (!rows.length) return 1;
+    var host = document.getElementById('measureHost');
+    if (!host){
+      host = document.createElement('div');
+      host.id = 'measureHost';
+      host.style.cssText = 'position:fixed; left:-99999px; top:0; visibility:hidden; pointer-events:none;';
+      document.body.appendChild(host);
+    }
+    host.innerHTML =
+      '<div style="width:'+PRINT_WIDTH_PX+'px; box-sizing:border-box; margin:0;" id="measurePL">'+packingListHTML(1)+'</div>' +
+      '<div style="width:'+PRINT_WIDTH_PX+'px; box-sizing:border-box; margin:0;" id="measureCI">'+commercialInvoiceHTML(1)+'</div>';
+    var hPL = document.getElementById('measurePL').scrollHeight;
+    var hCI = document.getElementById('measureCI').scrollHeight;
+    var maxH = Math.max(hPL, hCI, 1);
+    var scale = Math.min(1, TARGET_HEIGHT_PX / maxH);
+    return Math.max(scale, MIN_SCALE);
+  }
+
+  function pageWrap(innerHtml, scale){
+    return '<div class="page" style="padding:'+px(10,scale)+' '+px(4,scale)+';">'+innerHtml+'</div>';
+  }
+
+  function headerBlock(scale){
+    var letterheadStyle = 'text-align:center;border-bottom:'+px(2,scale)+' solid #B4242A;padding-bottom:'+px(9,scale)+';margin-bottom:'+px(10,scale)+';';
+    if (settings.logo){
+      return '<div style="'+letterheadStyle+'"><img src="'+settings.logo+'" style="max-height:'+px(70,scale)+'; max-width:80%;"></div>';
+    }
+    var nameStyle = 'text-align:center;color:#B4242A;font-weight:bold;font-size:'+px(23,scale)+';letter-spacing:'+px(0.4,scale)+';font-style:normal;margin:0;line-height:1.2;';
+    var addrStyle = 'text-align:center;color:#5B5B5B;font-size:'+px(9,scale)+';font-weight:normal;margin:'+px(4,scale)+' 0 0;letter-spacing:.2px;';
+    return '<div style="'+letterheadStyle+'">' +
+           '<p style="'+nameStyle+'">'+esc(settings.companyName)+'</p>' +
+           '<p style="'+addrStyle+'">'+esc(settings.companyAddr)+'</p>' +
+           '</div>';
+  }
+
+  function metaBlock(scale){
+    var kvStyle = 'margin:'+px(3,scale)+' 0; font-size:'+px(12.5,scale)+';';
+    var metaStyle = 'text-align:right;font-style:italic;margin:'+px(10,scale)+' 0; font-size:'+px(12.5,scale)+';';
+    return '<p style="'+kvStyle+'">CONSIGNEE:- '+esc(settings.consigneeName)+'</p>' +
+           '<p style="'+kvStyle+'">ADDRESS - '+esc(settings.consigneeAddr)+'</p>' +
+           '<p style="'+kvStyle+'">PAN/IEC NO.: '+esc(settings.panIec)+' , GST: '+esc(settings.gst)+'</p>' +
+           '<div style="'+metaStyle+'">InvoiceNo.: '+esc(settings.invoiceNo||'—')+'<br>Date: '+esc(settings.invoiceDate||'—')+', '+esc(settings.incoterm)+'</div>';
+  }
+
+  function stampBlock(scale){
+    if (!settings.stamp) return '';
+    return '<div style="text-align:right;margin-top:'+px(6,scale)+';"><img src="'+settings.stamp+'" style="height:'+px(70,scale)+';"></div>';
+  }
+
+  function packingListHTML(scale){
+    var padVal = Math.max(1, Math.round(5.5 * scale));
+    var thtd = 'border:1px solid #111;text-align:center;font-size:'+px(11.5,scale)+';white-space:nowrap;';
+    var thtdLeft = thtd + 'text-align:left;white-space:normal;';
+    var thBold = thtd + 'font-weight:bold;white-space:nowrap;';
+    var footCell = thtd + 'font-weight:bold;';
+    var footCellLeft = thtdLeft + 'font-weight:bold;';
+    var totCtn=0, totGross=0, totNet=0;
+    var body = rows.map(function(r){
+      totCtn += r.totalCtn; totGross += r.grossWeight; totNet += r.netWeight;
+      return '<tr>' +
+        '<td style="'+thtdLeft+'">'+esc(r.shippingMark)+'</td>' +
+        '<td style="'+thtdLeft+'">'+esc(r.itemName)+'</td>' +
+        '<td style="'+thtd+'">'+fmt(r.totalCtn,0)+'</td>' +
+        '<td style="'+thtd+'">'+fmt(r.grossWeight,0)+'</td>' +
+        '<td style="'+thtd+'">'+fmt(r.netWeight,0)+'</td>' +
+      '</tr>';
+    }).join('');
+    var tableStyle = 'width:100%;border-collapse:collapse;margin:'+px(14,scale)+' 0;table-layout:fixed;';
+    var titleStyle = 'text-align:center;font-size:'+px(17,scale)+';margin:'+px(18,scale)+' 0 '+px(14,scale)+';';
+    var termsStyle = 'font-weight:bold;font-style:italic;margin-top:'+px(16,scale)+';font-size:'+px(11.5,scale)+';';
+    return headerBlock(scale) +
+      '<h1 style="'+titleStyle+'">PACKING LIST</h1>' + metaBlock(scale) +
+      '<table cellpadding="'+padVal+'" cellspacing="0" style="'+tableStyle+'"><colgroup><col style="width:20%"><col style="width:33%"><col style="width:15%"><col style="width:16%"><col style="width:16%"></colgroup><thead><tr>' +
+        '<th style="'+thBold+'">SHIPPING MARK</th><th style="'+thBold+'">ITEM NAME</th><th style="'+thBold+'">TOTAL CTN</th><th style="'+thBold+'">GROSS WEIGHT</th><th style="'+thBold+'">NET WEIGHT</th>' +
+      '</tr></thead>' +
+      '<tbody>'+body+'</tbody>' +
+      '<tfoot><tr><td colspan="2" style="'+footCellLeft+'">TOTAL</td><td style="'+footCell+'">'+fmt(totCtn,0)+'</td><td style="'+footCell+'">'+fmt(totGross,0)+'</td><td style="'+footCell+'">'+fmt(totNet,0)+'</td></tr></tfoot>' +
+      '</table>' +
+      '<div style="'+termsStyle+'">'+esc(settings.termsPacking)+'</div>' + stampBlock(scale);
+  }
+
+  function commercialInvoiceHTML(scale){
+    var padVal = Math.max(1, Math.round(5.5 * scale));
+    var thtd = 'border:1px solid #111;text-align:center;font-size:'+px(11.5,scale)+';white-space:nowrap;';
+    var thtdLeft = thtd + 'text-align:left;white-space:normal;';
+    var thBold = thtd + 'font-weight:bold;white-space:nowrap;';
+    var footCell = thtd + 'font-weight:bold;';
+    var footCellLeft = thtdLeft + 'font-weight:bold;';
+    var totValue=0;
+    var body = rows.map(function(r){
+      totValue += r.total;
+      return '<tr>' +
+        '<td style="'+thtdLeft+'">'+esc(r.itemName)+'</td>' +
+        '<td style="'+thtd+'"><nobr>'+esc(r.unit)+'</nobr></td>' +
+        '<td style="'+thtd+'">'+fmt(r.quantity,0)+'</td>' +
+        '<td style="'+thtd+'">'+fmt(r.unitPrice,2)+'</td>' +
+        '<td style="'+thtd+'">'+fmt(r.total,2)+'</td>' +
+      '</tr>';
+    }).join('');
+    var bankStyle = 'font-weight:bold;font-style:italic;font-size:'+px(11,scale)+';line-height:1.45;margin-top:'+px(4,scale)+';';
+    var bankHtml = esc(settings.bankDetails).split('\n').map(function(l){ return l.trim() ? l : '&nbsp;'; }).join('<br>');
+    var tableStyle = 'width:100%;border-collapse:collapse;margin:'+px(14,scale)+' 0;table-layout:fixed;';
+    var titleStyle = 'text-align:center;font-size:'+px(17,scale)+';margin:'+px(18,scale)+' 0 '+px(14,scale)+';';
+    var termsStyle = 'font-weight:bold;font-style:italic;margin-top:'+px(16,scale)+';font-size:'+px(11.5,scale)+';';
+    return headerBlock(scale) +
+      '<h1 style="'+titleStyle+'">COMMERCIAL INVOICE</h1>' + metaBlock(scale) +
+      '<table cellpadding="'+padVal+'" cellspacing="0" style="'+tableStyle+'"><colgroup><col style="width:40%"><col style="width:14%"><col style="width:15%"><col style="width:16%"><col style="width:15%"></colgroup><thead><tr>' +
+        '<th style="'+thBold+'">ITEM NAME</th><th style="'+thBold+'">UNIT</th><th style="'+thBold+'">QUANTITY</th><th style="'+thBold+'">UNIT PRICE</th><th style="'+thBold+'">TOTAL</th>' +
+      '</tr></thead>' +
+      '<tbody>'+body+'</tbody>' +
+      '<tfoot><tr><td colspan="4" style="'+footCellLeft+'">TOTAL</td><td style="'+footCell+'">'+fmt(totValue,2)+'</td></tr></tfoot>' +
+      '</table>' +
+      '<div style="'+termsStyle+'">'+esc(settings.termsInvoice)+'</div>' +
+      '<div style="'+bankStyle+'">'+bankHtml+'</div>' + stampBlock(scale);
+  }
+
+  function renderPreview(){
+    var host = document.getElementById('previewHost');
+    if (!rows.length){
+      host.innerHTML = '<div class="empty-hint">Add rows to see the Packing List and Commercial Invoice preview.</div>';
+      return;
+    }
+    var scale = computeFitScale();
+    var html = activeTab === 'packing' ? packingListHTML(scale) : commercialInvoiceHTML(scale);
+    host.innerHTML = pageWrap(html, scale);
+    var hint = document.getElementById('fitHint');
+    if (hint){
+      hint.textContent = scale < 0.999
+        ? ('Table auto-shrunk to '+Math.round(scale*100)+'% so it fits on one page.' + (scale <= MIN_SCALE ? ' This is a lot of line items — it may still run slightly long.' : ''))
+        : ('Font at full size — comfortably fits one page with '+rows.length+' row(s).');
+    }
+  }
+
+  document.querySelectorAll('.tabbtn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tabbtn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeTab = btn.dataset.tab;
+      renderPreview();
+    });
+  });
+
+  // ---------- collapsible cards ----------
+  document.querySelectorAll('[data-toggle]').forEach(function(head){
+    head.addEventListener('click', function(){
+      var card = document.getElementById(head.dataset.toggle);
+      card.classList.toggle('collapsed');
+    });
+  });
+
+  // ---------- settings wiring ----------
+  document.getElementById('saveSettingsBtn').addEventListener('click', function(){
+    readSettingsFromForm();
+    computeAll();
+    toast('Settings saved');
+  });
+  ['setNetPct','setRupeeRate','setUsdRate','setIncoterm','setInvoiceNo','setInvoiceDate',
+   'setConsigneeName','setPanIec','setGst','setTermsPacking','setTermsInvoice'].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(){ readSettingsFromForm(); renderPreview(); });
+  });
+  document.getElementById('setCompanyName').addEventListener('change', function(){ readSettingsFromForm(); renderPreview(); });
+  document.getElementById('setCompanyAddr').addEventListener('change', function(){ readSettingsFromForm(); renderPreview(); });
+  document.getElementById('setConsigneeAddr').addEventListener('change', function(){ readSettingsFromForm(); renderPreview(); });
+  document.getElementById('setBankDetails').addEventListener('change', function(){ readSettingsFromForm(); renderPreview(); });
+
+  function handleImageFile(inputEl, key){
+    inputEl.addEventListener('change', function(){
+      var file = inputEl.files && inputEl.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        settings[key] = reader.result;
+        renderImagePreview(key);
+        renderPreview();
+        saveState();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  handleImageFile(document.getElementById('setLogoFile'), 'logo');
+  handleImageFile(document.getElementById('setStampFile'), 'stamp');
+
+  document.body.addEventListener('click', function(e){
+    var clr = e.target.closest('[data-clearimg]');
+    if (clr){
+      settings[clr.dataset.clearimg] = '';
+      renderImagePreview(clr.dataset.clearimg);
+      renderPreview();
+      saveState();
+    }
+  });
+
+  // ---------- top-level buttons ----------
+  document.getElementById('parseBtn').addEventListener('click', parsePaste);
+  document.getElementById('recalcAllBtn').addEventListener('click', function(){
+    readSettingsFromForm();
+    computeAll();
+    toast('Recalculated (manual overrides kept)');
+  });
+  document.getElementById('resetAllBtn').addEventListener('click', function(){
+    rows.forEach(function(r){ r.netAuto = true; r.priceAuto = true; r.totalAuto = true; });
+    readSettingsFromForm();
+    computeAll();
+    toast('All rows reset to auto-calculated values');
+  });
+  document.getElementById('loadSampleBtn').addEventListener('click', function(){
+    if (!document.getElementById('appendModeCheckbox').checked) rows = [];
+    SAMPLE_ROWS.forEach(function(row){ addRow(row[0],row[1],row[2],row[3],row[4],row[5]); });
+    if (!settings.invoiceNo) settings.invoiceNo = 'YZIETO190826';
+    if (!settings.invoiceDate) settings.invoiceDate = '19-08-2026';
+    writeSettingsToForm();
+    computeAll();
+    toast('Sample data loaded');
+  });
+  // Some sandboxed artifact iframes silently block window.confirm(), which would make
+  // this button appear to do nothing. Use a self-contained "click again to confirm"
+  // pattern instead so it always works.
+  var clearArmed = false, clearArmTimer = null;
+  document.getElementById('clearAllBtn').addEventListener('click', function(){
+    var btn = document.getElementById('clearAllBtn');
+    if (!rows.length){ toast('Table is already empty'); return; }
+    if (!clearArmed){
+      clearArmed = true;
+      btn.textContent = 'Click again to confirm';
+      clearArmTimer = setTimeout(function(){ clearArmed = false; btn.textContent = 'Clear all'; }, 3000);
+      return;
+    }
+    clearTimeout(clearArmTimer);
+    clearArmed = false;
+    btn.textContent = 'Clear all';
+    rows = [];
+    computeAll();
+    toast('Cleared');
+  });
+
+  // ---------- exports ----------
+  function downloadBlob(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function exportExcel(){
+    if (!rows.length){ toast('Add rows first'); return; }
+    if (typeof XLSX === 'undefined'){ toast('Excel library failed to load — check your connection and retry'); return; }
+    var wb = XLSX.utils.book_new();
+
+    var inputAoa = [['Shipping Mark','Item Name','Total CTN','Unit','Quantity','Gross Weight']];
+    rows.forEach(function(r){ inputAoa.push([r.shippingMark, r.itemName, r.totalCtn, r.unit, r.quantity, r.grossWeight]); });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inputAoa), 'Input Data');
+
+    var plAoa = [['Shipping Mark','Item Name','Total CTN','Gross Weight','Net Weight']];
+    var tC=0,tG=0,tN=0;
+    rows.forEach(function(r){ tC+=r.totalCtn; tG+=r.grossWeight; tN+=r.netWeight; plAoa.push([r.shippingMark, r.itemName, r.totalCtn, r.grossWeight, r.netWeight]); });
+    plAoa.push(['TOTAL','',tC,tG,tN]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(plAoa), 'Packing List');
+
+    var ciAoa = [['Item Name','Unit','Quantity','Unit Price','Total']];
+    var tV=0;
+    rows.forEach(function(r){ tV+=r.total; ciAoa.push([r.itemName, r.unit, r.quantity, r.unitPrice, r.total]); });
+    ciAoa.push(['TOTAL','','','',tV]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ciAoa), 'Commercial Invoice');
+
+    XLSX.writeFile(wb, 'PL_CI_'+(settings.invoiceNo||'export')+'.xlsx');
+    toast('Excel file downloaded');
+  }
+
+  function fullDocumentHTML(scale, forWord){
+    var pageBreak = forWord
+      ? "<br clear=all style='mso-special-character:line-break;page-break-before:always'>"
+      : '<div style="page-break-before:always;"></div>';
+    return pageWrap(packingListHTML(scale), scale) +
+           pageBreak +
+           pageWrap(commercialInvoiceHTML(scale), scale);
+  }
+
+  // Only static, non-scaled rules live here now (table border-collapse, the @page
+  // size for print, a body font fallback) — every size that needs to shrink with
+  // the fit scale is written as an inline style directly on its element instead
+  // (see packingListHTML/commercialInvoiceHTML/headerBlock above), because Word's
+  // HTML renderer and LibreOffice's .doc-as-HTML import don't reliably apply rules
+  // from an external <style> block, only inline ones.
+  function docStyles(scale){
+    scale = scale || 1;
+    // Word creates an implicit paragraph inside every table cell, and that paragraph's
+    // own hidden end-of-paragraph mark — plus any default "space after paragraph" from
+    // the document's Normal style — can inherit the document's default font size and
+    // spacing rather than the smaller size we set inline on the visible text. That sets
+    // an invisible floor under every row's height regardless of the inline font-size we
+    // give the visible text. Setting the same small size and a zero margin globally
+    // (body/table/p) closes that gap so rows actually shrink as intended.
+    return '<style>' +
+      'body{font-family:Arial,sans-serif;color:#111;font-size:'+px(11.5,scale)+';}' +
+      'table{border-collapse:collapse;font-size:'+px(11.5,scale)+';}' +
+      'td,th{font-size:'+px(11.5,scale)+';}' +
+      'p{margin:0;padding:0;}' +
+      '@page{ size:A4; margin:16mm; }' +
+      '</style>';
+  }
+
+  function exportWord(){
+    if (!rows.length){ toast('Add rows first'); return; }
+    var scale = computeFitScale();
+    var pre = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>PL &amp; CI</title>" + docStyles(scale) + "</head><body>";
+    var post = "</body></html>";
+    var full = pre + fullDocumentHTML(scale, true) + post;
+    var blob = new Blob(['\ufeff', full], { type: 'application/msword' });
+    downloadBlob(blob, 'PL_CI_'+(settings.invoiceNo||'export')+'.doc');
+    toast('Word file downloaded (opens directly in Word)');
+  }
+
+  function exportPdf(){
+    if (!rows.length){ toast('Add rows first'); return; }
+    var w = window.open('', '_blank');
+    if (!w){ toast('Pop-up blocked — allow pop-ups to download the PDF'); return; }
+    var scale = computeFitScale();
+    var html = "<html><head><meta charset='utf-8'><title>PL &amp; CI</title>" + docStyles(scale) + "</head><body>" + fullDocumentHTML(scale, false) + "</body></html>";
+    w.document.open(); w.document.write(html); w.document.close();
+    setTimeout(function(){ w.focus(); w.print(); }, 350);
+  }
+
+  document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+  document.getElementById('exportWordBtn').addEventListener('click', exportWord);
+  document.getElementById('exportPdfBtn').addEventListener('click', exportPdf);
+
+  // ---------- init ----------
+  loadState();
+
+})();
+</script>
+</body>
+</html>
